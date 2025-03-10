@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Doom Caseiro</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+    canvas {
+      display: block;
+    }
+    #gameOverScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 48px;
+      text-align: center;
+      display: none;
+    }
+    #respawnButton {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #fff;
+      color: #000;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    #respawnButton:hover {
+      background-color: #ddd;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameOverScreen">
+    Game Over
+    <br>
+    <button id="respawnButton">Renascer</button>
+  </div>
+  <div id="info">
+    Nível: 1 | Inimigos Derrotados: 0 | Melhor Pontuação: 0
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const respawnButton = document.getElementById('respawnButton');
+    const infoDiv = document.getElementById('info');
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Variáveis de jogo
+    let currentLevel = 1;
+    let enemiesDefeated = 0;
+    let bestScore = 0;
+    let enemies = [];
+
+    // Jogador
+    const player = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      width: 20,
+      height: 20,
+      speed: 5,
+      color: 'blue',
+      alive: true,
+    };
+
+    // Projéteis
+    const bullets = [];
+    const bulletSpeed = 7;
+
+    // Criar inimigos com velocidades aleatórias e longe do jogador
+    function createEnemies() {
+      for (let i = 0; i < 5 + currentLevel * 2; i++) { // A cada nível, mais inimigos
+        const speed = Math.random() * 2 + 0.5; // Velocidade aleatória entre 0.5 e 2.5
+        let x, y;
+        
+        // Garantir que os inimigos não nasçam perto do jogador
+        do {
+          x = Math.random() * canvas.width;
+          y = Math.random() * canvas.height;
+        } while (Math.abs(x - player.x) < 200 && Math.abs(y - player.y) < 200); // Inimigos nascem a pelo menos 200 pixels de distância do jogador
+
+        enemies.push({
+          x: x,
+          y: y,
+          width: 30,
+          height: 30,
+          color: 'red',
+          speed: speed,
+        });
+      }
+    }
+
+    // Movimento do jogador
+    const keys = {};
+    window.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+
+    function movePlayer() {
+      if (keys['ArrowUp'] || keys['w']) player.y -= player.speed;
+      if (keys['ArrowDown'] || keys['s']) player.y += player.speed;
+      if (keys['ArrowLeft'] || keys['a']) player.x -= player.speed;
+      if (keys['ArrowRight'] || keys['d']) player.x += player.speed;
+
+      // Limitar o movimento dentro da tela
+      if (player.x < 0) player.x = 0;
+      if (player.y < 0) player.y = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+      if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+    }
+
+    // Criar projéteis na direção do mouse
+    function shootBullet(event) {
+      const mouseX = event.clientX;
+      const mouseY = event.clientY;
+
+      const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+      bullets.push({
+        x: player.x + player.width / 2,
+        y: player.y + player.height / 2,
+        dx: Math.cos(angle) * bulletSpeed,
+        dy: Math.sin(angle) * bulletSpeed,
+        width: 5,
+        height: 10
+      });
+    }
+
+    // Adicionar evento de clique do mouse
+    window.addEventListener('click', shootBullet);
+
+    // Movimentação dos inimigos
+    function moveEnemies() {
+      for (let enemy of enemies) {
+        if (enemy.x < player.x) enemy.x += enemy.speed;
+        if (enemy.x > player.x) enemy.x -= enemy.speed;
+        if (enemy.y < player.y) enemy.y += enemy.speed;
+        if (enemy.y > player.y) enemy.y -= enemy.speed;
+      }
+    }
+
+    // Desenhar elementos no canvas
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Desenha o jogador
+      if (player.alive) {
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      }
+
+      // Desenha os inimigos
+      for (let enemy of enemies) {
+        ctx.fillStyle = enemy.color;
+        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+      }
+
+      // Desenha os projéteis
+      ctx.fillStyle = 'yellow';
+      for (let bullet of bullets) {
+        bullet.x += bullet.dx;
+        bullet.y += bullet.dy;
+        ctx.fillRect(bullet.x - bullet.width / 2, bullet.y, bullet.width, bullet.height);
+      }
+
+      // Atualiza as informações de status
+      infoDiv.textContent = `Nível: ${currentLevel} | Inimigos Derrotados: ${enemiesDefeated} | Melhor Pontuação: ${bestScore}`;
+    }
+
+    // Colisão de projéteis com inimigos
+    function checkCollisions() {
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        for (let j = enemies.length - 1; j >= 0; j--) {
+          if (bullets[i].x < enemies[j].x + enemies[j].width &&
+              bullets[i].x + bullets[i].width > enemies[j].x &&
+              bullets[i].y < enemies[j].y + enemies[j].height &&
+              bullets[i].y + bullets[i].height > enemies[j].y) {
+            // Remover o inimigo e o projétil após a colisão
+            enemies.splice(j, 1);
+            bullets.splice(i, 1);
+            enemiesDefeated++;
+            break;
+          }
+        }
+      }
+    }
+
+    // Verificar se o jogador foi tocado por um inimigo
+    function checkPlayerCollision() {
+      for (let enemy of enemies) {
+        if (player.x < enemy.x + enemy.width &&
+            player.x + player.width > enemy.x &&
+            player.y < enemy.y + enemy.height &&
+            player.y + player.height > enemy.y) {
+          // Morrer
+          player.alive = false;
+          showGameOverScreen();
+        }
+      }
+    }
+
+    // Exibir tela de game over
+    function showGameOverScreen() {
+      gameOverScreen.style.display = 'block';
+      if (enemiesDefeated > bestScore) {
+        bestScore = enemiesDefeated;
+      }
+    }
+
+    // Renascimento do jogador
+    function respawn() {
+      player.x = canvas.width / 2;
+      player.y = canvas.height / 2;
+      player.alive = true;
+      enemiesDefeated = 0; // Zerar a contagem de inimigos derrotados
+      enemies.length = 0; // Recriar inimigos
+      createEnemies();
+      gameOverScreen.style.display = 'none';
+      startLevel();
+    }
+
+    // Iniciar um novo nível
+    function startLevel() {
+      setTimeout(() => {
+        enemies.length = 0; // Limpar inimigos do nível anterior
+        createEnemies();
+        player.alive = true;
+      }, 1000); // Reiniciar o nível após 1 segundo
+    }
+
+    // Loop principal do jogo
+    function gameLoop() {
+      if (player.alive) {
+        movePlayer();
+        moveEnemies();
+        checkCollisions();
+        checkPlayerCollision();
+
+        // Se todos os inimigos forem derrotados, iniciar o próximo nível
+        if (enemies.length === 0) {
+          startLevel();
+        }
+      }
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Inicialização
+    createEnemies();
+    gameLoop();
+
+    // Adicionar evento de renascimento
+    respawnButton.addEventListener('click', respawn);
+  </script>
+</body>
+</html>
